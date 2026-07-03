@@ -39,8 +39,9 @@ msd-download "https://open.spotify.com/album/4eLPsYPBmXABThSJ821sqYhttps://open.
 ```
 
 Execute an artist download loop:
+
 ```bash
 msd-download "https://open.spotify.com/artist/2YZyLoL8N0Wb9xBt1NhZWghttps://open.spotify.com/artist/7kZTWx6cRLc0TSRPq1XBMP?si=f2e9e82afbfe45ce"
-``
+```
 
 *Note: Execution will yield formatted Unix output headers: `[INFO]`, `[SUCCESS]`, `[ERROR]`, `[DEBUG]` for strict tracking.*
