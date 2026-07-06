@@ -78,7 +78,7 @@ set -euo pipefail
 # Configuration
 LAVALINK_URL="${LAVALINK_URL:-http://localhost:2333}"
 LAVALINK_PASSWORD="${LAVALINK_PASSWORD:-youshallnotpass}"
-DOWNLOAD_BASE_DIR="$HOME/Downloads/Spotify-Downloads"
+DOWNLOAD_BASE_DIR="${DOWNLOAD_BASE_DIR:-$HOME/Downloads/Spotify-Downloads}"
 
 # Print functions for log standardization
 log_info() { echo "[INFO] $1"; }
@@ -100,9 +100,9 @@ while [[ $# -gt 0 ]]; do
             CSV_FILE="${2/#\~/$HOME}"
             shift 2
             ;;
-        -csv-dir)
+        -csv-dir | -csvd)
             if [[ -z "${2:-}" ]]; then
-                log_error "Missing directory path for -csv-dir"
+                log_error "Missing directory path for -csvd"
                 exit 1
             fi
             CSV_DIR="${2/#\~/$HOME}"
@@ -124,7 +124,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$SPOTIFY_URL" && -z "$CSV_FILE" && -z "$CSV_DIR" ]]; then
-    log_error "Usage: msd-download [-csv <file>] [-csv-dir <dir>] [-d <dir>] [<spotify-link>]"
+    log_error "Usage: msd-download [-csv <file>] [-csvd <dir>] [-d <dir>] [<spotify-link>]"
     exit 1
 fi
 
