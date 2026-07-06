@@ -100,9 +100,9 @@ while [[ $# -gt 0 ]]; do
             CSV_FILE="${2/#\~/$HOME}"
             shift 2
             ;;
-        -csvd)
+        -csv-dir)
             if [[ -z "${2:-}" ]]; then
-                log_error "Missing directory path for -csvd"
+                log_error "Missing directory path for -csv-dir"
                 exit 1
             fi
             CSV_DIR="${2/#\~/$HOME}"
@@ -124,7 +124,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$SPOTIFY_URL" && -z "$CSV_FILE" && -z "$CSV_DIR" ]]; then
-    log_error "Usage: msd-download [-csv <file>] [-csvd <dir>] [-d <dir>] [<spotify-link>]"
+    log_error "Usage: msd-download [-csv <file>] [-csv-dir <dir>] [-d <dir>] [<spotify-link>]"
     exit 1
 fi
 
