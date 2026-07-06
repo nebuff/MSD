@@ -128,7 +128,11 @@ if [[ -z "$SPOTIFY_URL" && -z "$CSV_FILE" && -z "$CSV_DIR" ]]; then
     exit 1
 fi
 
-process_url() {
+TRACK_QUEUE=$(mktemp)
+GLOBAL_TOTAL_TRACKS=0
+GLOBAL_CURRENT_TRACK=0
+
+gather_url() {
     local url="$1"
 
     if [[ ! "$url" =~ open\.spotify\.com/(track|album|artist|playlist)/([a-zA-Z0-9]+) ]]; then
@@ -143,13 +147,14 @@ process_url() {
 
     case "$SPOTIFY_TYPE" in
         track)
-            process_track "$url"
+            echo "$url" >> "$TRACK_QUEUE"
+            GLOBAL_TOTAL_TRACKS=$((GLOBAL_TOTAL_TRACKS + 1))
             ;;
         album)
-            process_album "$url"
+            gather_album "$url"
             ;;
         artist)
-            process_artist "$url"
+            gather_artist "$url"
             ;;
         *)
             log_error "Unsupported Spotify link type: $SPOTIFY_TYPE"
@@ -285,6 +290,21 @@ process_track() {
 
     log_success "Resolved: $track_title by $artist (Album: $album)"
 
+    local safe_artist
+    safe_artist=$(echo "$artist" | tr -d ':/\\')
+    local safe_album
+    safe_album=$(echo "$album" | tr -d ':/\\')
+    local safe_title
+    safe_title=$(echo "$track_title" | tr -d ':/\\')
+
+    local output_dir="${DOWNLOAD_BASE_DIR}/${safe_artist}/${safe_album}"
+    local expected_file="${output_dir}/${safe_title}.mp3"
+
+    if [[ -f "$expected_file" ]]; then
+        log_success "Download completed for: $track_title ($GLOBAL_CURRENT_TRACK/$GLOBAL_TOTAL_TRACKS) [Skipped - Already exists]"
+        return 0
+    fi
+
     local search_query="${track_title} ${artist}"
     log_info "Querying Lavalink node for source stream..."
 
@@ -295,14 +315,6 @@ process_track() {
 
     log_success "Found source stream: $source_url"
 
-    local safe_artist
-    safe_artist=$(echo "$artist" | tr -d ':/\\')
-    local safe_album
-    safe_album=$(echo "$album" | tr -d ':/\\')
-    local safe_title
-    safe_title=$(echo "$track_title" | tr -d ':/\\')
-
-    local output_dir="${DOWNLOAD_BASE_DIR}/${safe_artist}/${safe_album}"
     mkdir -p "$output_dir"
 
     log_info "Downloading with yt-dlp to: $output_dir"
@@ -332,13 +344,13 @@ process_track() {
     done
 
     if [ "$dl_success" = true ]; then
-        log_success "Download completed for: $track_title"
+        log_success "Download completed for: $track_title ($GLOBAL_CURRENT_TRACK/$GLOBAL_TOTAL_TRACKS)"
     else
-        log_error "Download failed for: $track_title after $max_dl_retries retries"
+        log_error "Download failed for: $track_title after $max_dl_retries retries ($GLOBAL_CURRENT_TRACK/$GLOBAL_TOTAL_TRACKS)"
     fi
 }
 
-process_album() {
+gather_album() {
     local url="$1"
     log_info "Fetching album tracks..."
     local html_content
@@ -355,14 +367,15 @@ process_album() {
 
     while IFS= read -r track_url; do
         if [[ -n "$track_url" ]]; then
-            process_track "$track_url" || true
+            echo "$track_url" >> "$TRACK_QUEUE"
+            GLOBAL_TOTAL_TRACKS=$((GLOBAL_TOTAL_TRACKS + 1))
         fi
     done <<< "$track_urls"
 
     log_success "Album processing finished."
 }
 
-process_artist() {
+gather_artist() {
     local url="$1"
     log_info "Fetching artist top tracks..."
     local html_content
@@ -379,7 +392,8 @@ process_artist() {
 
     while IFS= read -r tid; do
         if [[ -n "$tid" ]]; then
-            process_track "https://open.spotify.com/track/$tid" || true
+            echo "https://open.spotify.com/track/$tid" >> "$TRACK_QUEUE"
+            GLOBAL_TOTAL_TRACKS=$((GLOBAL_TOTAL_TRACKS + 1))
         fi
     done <<< "$track_ids"
 
@@ -391,9 +405,9 @@ process_csv_file() {
     log_info "Processing URLs from CSV file: $file"
     while IFS= read -r line || [[ -n "$line" ]]; do
         if [[ "$line" =~ https?://open\.spotify\.com/(track|album|artist|playlist)/[a-zA-Z0-9]+ ]]; then
-            process_url "${BASH_REMATCH[0]}" || true
+            gather_url "${BASH_REMATCH[0]}" || true
         elif [[ "$line" =~ spotify:(track|album|artist|playlist):([a-zA-Z0-9]+) ]]; then
-            process_url "https://open.spotify.com/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" || true
+            gather_url "https://open.spotify.com/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" || true
         fi
     done < "$file"
 }
@@ -421,8 +435,19 @@ if [[ -n "$CSV_DIR" ]]; then
 fi
 
 if [[ -n "$SPOTIFY_URL" ]]; then
-    process_url "$SPOTIFY_URL" || exit 1
+    gather_url "$SPOTIFY_URL" || exit 1
 fi
+
+log_info "Total tracks queued: $GLOBAL_TOTAL_TRACKS"
+
+while IFS= read -r track_url || [[ -n "$track_url" ]]; do
+    if [[ -n "$track_url" ]]; then
+        GLOBAL_CURRENT_TRACK=$((GLOBAL_CURRENT_TRACK + 1))
+        process_track "$track_url" || true
+    fi
+done < "$TRACK_QUEUE"
+
+rm -f "$TRACK_QUEUE"
 
 log_success "All tasks completed."
 EOF
