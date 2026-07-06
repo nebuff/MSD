@@ -49,6 +49,11 @@ Execute batch download via CSV:
 msd-download -csv "~/Documents/music.csv"
 ```
 
+Execute batch download via a directory of CSV files:
+```bash
+msd-download -csvd "~/Documents/Spotify Playlists"
+```
+
 Execute batch download via CSV to a specific directory:
 ```bash
 msd-download -csv "~/Documents/music.csv" -d "~/Music"
