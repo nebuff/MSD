@@ -429,9 +429,9 @@ if [[ -n "$CSV_DIR" ]]; then
         exit 1
     fi
     log_info "Processing all CSV files in directory: $CSV_DIR"
-    find "$CSV_DIR" -maxdepth 1 -name "*.csv" -print0 | while IFS= read -r -d '' file; do
+    while IFS= read -r -d '' file; do
         process_csv_file "$file"
-    done
+    done < <(find "$CSV_DIR" -maxdepth 1 -name "*.csv" -print0)
 fi
 
 if [[ -n "$SPOTIFY_URL" ]]; then
