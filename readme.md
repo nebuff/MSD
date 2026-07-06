@@ -44,4 +44,19 @@ Execute an artist download loop:
 msd-download "https://open.spotify.com/artist/2YZyLoL8N0Wb9xBt1NhZWghttps://open.spotify.com/artist/7kZTWx6cRLc0TSRPq1XBMP?si=f2e9e82afbfe45ce"
 ```
 
+Execute batch download via CSV:
+```bash
+msd-download -csv "~/Documents/music.csv"
+```
+
+Execute batch download via CSV to a specific directory:
+```bash
+msd-download -csv "~/Documents/music.csv" -d "~/Music"
+```
+
+Execute a single track resolution to a specific directory:
+```bash
+msd-download -d "~/Music" "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqThttps://open.spotify.com/track/3yCKJlbaX60oX6K4mgurgz?si=1fdaca45d3dc47d0"
+```
+
 *Note: Execution will yield formatted Unix output headers: `[INFO]`, `[SUCCESS]`, `[ERROR]`, `[DEBUG]` for strict tracking.*

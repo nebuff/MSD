@@ -86,24 +86,68 @@ log_success() { echo "[SUCCESS] $1"; }
 log_error() { echo "[ERROR] $1" >&2; }
 log_debug() { echo "[DEBUG] $1"; }
 
-if [[ $# -eq 0 ]]; then
-    log_error "Usage: msd-download <spotify-link>"
+SPOTIFY_URL=""
+CSV_FILE=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -csv)
+            if [[ -z "${2:-}" ]]; then
+                log_error "Missing file path for -csv"
+                exit 1
+            fi
+            CSV_FILE="${2/#\~/$HOME}"
+            shift 2
+            ;;
+        -d)
+            if [[ -z "${2:-}" ]]; then
+                log_error "Missing directory path for -d"
+                exit 1
+            fi
+            DOWNLOAD_BASE_DIR="${2/#\~/$HOME}"
+            shift 2
+            ;;
+        *)
+            SPOTIFY_URL="$1"
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$SPOTIFY_URL" && -z "$CSV_FILE" ]]; then
+    log_error "Usage: msd-download [-csv <file>] [-d <dir>] [<spotify-link>]"
     exit 1
 fi
 
-SPOTIFY_URL="$1"
+process_url() {
+    local url="$1"
 
-# Extract Spotify ID and Type
-if [[ ! "$SPOTIFY_URL" =~ open\.spotify\.com/(track|album|artist|playlist)/([a-zA-Z0-9]+) ]]; then
-    log_error "Invalid Spotify URL format."
-    exit 1
-fi
+    if [[ ! "$url" =~ open\.spotify\.com/(track|album|artist|playlist)/([a-zA-Z0-9]+) ]]; then
+        log_error "Invalid Spotify URL format: $url"
+        return 1
+    fi
 
-SPOTIFY_TYPE="${BASH_REMATCH[1]}"
-SPOTIFY_ID="${BASH_REMATCH[2]}"
+    local SPOTIFY_TYPE="${BASH_REMATCH[1]}"
+    local SPOTIFY_ID="${BASH_REMATCH[2]}"
 
-log_info "Detected Spotify ${SPOTIFY_TYPE} with ID: ${SPOTIFY_ID}"
-log_info "Engine initialized. Credits: Asumi Hoshino"
+    log_info "Detected Spotify ${SPOTIFY_TYPE} with ID: ${SPOTIFY_ID}"
+
+    case "$SPOTIFY_TYPE" in
+        track)
+            process_track "$url"
+            ;;
+        album)
+            process_album "$url"
+            ;;
+        artist)
+            process_artist "$url"
+            ;;
+        *)
+            log_error "Unsupported Spotify link type: $SPOTIFY_TYPE"
+            return 1
+            ;;
+    esac
+}
 
 fetch_spotify_metadata() {
     local url="$1"
@@ -268,21 +312,24 @@ process_artist() {
 }
 
 # Execution Flow
-case "$SPOTIFY_TYPE" in
-    track)
-        process_track "$SPOTIFY_URL"
-        ;;
-    album)
-        process_album "$SPOTIFY_URL"
-        ;;
-    artist)
-        process_artist "$SPOTIFY_URL"
-        ;;
-    *)
-        log_error "Unsupported Spotify link type: $SPOTIFY_TYPE"
+log_info "Engine initialized. Credits: Asumi Hoshino"
+
+if [[ -n "$CSV_FILE" ]]; then
+    if [[ ! -f "$CSV_FILE" ]]; then
+        log_error "CSV file not found: $CSV_FILE"
         exit 1
-        ;;
-esac
+    fi
+    log_info "Processing URLs from CSV file: $CSV_FILE"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" =~ https?://open\.spotify\.com/(track|album|artist|playlist)/[a-zA-Z0-9]+ ]]; then
+            process_url "${BASH_REMATCH[0]}"
+        fi
+    done < "$CSV_FILE"
+fi
+
+if [[ -n "$SPOTIFY_URL" ]]; then
+    process_url "$SPOTIFY_URL" || exit 1
+fi
 
 log_success "All tasks completed."
 EOF
