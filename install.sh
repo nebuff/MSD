@@ -88,6 +88,7 @@ log_debug() { echo "[DEBUG] $1"; }
 
 SPOTIFY_URL=""
 CSV_FILE=""
+CSV_DIR=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -97,6 +98,14 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             CSV_FILE="${2/#\~/$HOME}"
+            shift 2
+            ;;
+        -csv-dir)
+            if [[ -z "${2:-}" ]]; then
+                log_error "Missing directory path for -csv-dir"
+                exit 1
+            fi
+            CSV_DIR="${2/#\~/$HOME}"
             shift 2
             ;;
         -d)
@@ -114,8 +123,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "$SPOTIFY_URL" && -z "$CSV_FILE" ]]; then
-    log_error "Usage: msd-download [-csv <file>] [-d <dir>] [<spotify-link>]"
+if [[ -z "$SPOTIFY_URL" && -z "$CSV_FILE" && -z "$CSV_DIR" ]]; then
+    log_error "Usage: msd-download [-csv <file>] [-csv-dir <dir>] [-d <dir>] [<spotify-link>]"
     exit 1
 fi
 
@@ -311,6 +320,18 @@ process_artist() {
     log_success "Artist processing finished."
 }
 
+process_csv_file() {
+    local file="$1"
+    log_info "Processing URLs from CSV file: $file"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" =~ https?://open\.spotify\.com/(track|album|artist|playlist)/[a-zA-Z0-9]+ ]]; then
+            process_url "${BASH_REMATCH[0]}"
+        elif [[ "$line" =~ spotify:(track|album|artist|playlist):([a-zA-Z0-9]+) ]]; then
+            process_url "https://open.spotify.com/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+        fi
+    done < "$file"
+}
+
 # Execution Flow
 log_info "Engine initialized. Credits: Asumi Hoshino"
 
@@ -319,12 +340,18 @@ if [[ -n "$CSV_FILE" ]]; then
         log_error "CSV file not found: $CSV_FILE"
         exit 1
     fi
-    log_info "Processing URLs from CSV file: $CSV_FILE"
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        if [[ "$line" =~ https?://open\.spotify\.com/(track|album|artist|playlist)/[a-zA-Z0-9]+ ]]; then
-            process_url "${BASH_REMATCH[0]}"
-        fi
-    done < "$CSV_FILE"
+    process_csv_file "$CSV_FILE"
+fi
+
+if [[ -n "$CSV_DIR" ]]; then
+    if [[ ! -d "$CSV_DIR" ]]; then
+        log_error "CSV directory not found: $CSV_DIR"
+        exit 1
+    fi
+    log_info "Processing all CSV files in directory: $CSV_DIR"
+    find "$CSV_DIR" -maxdepth 1 -name "*.csv" -print0 | while IFS= read -r -d '' file; do
+        process_csv_file "$file"
+    done
 fi
 
 if [[ -n "$SPOTIFY_URL" ]]; then
