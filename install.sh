@@ -161,7 +161,31 @@ process_url() {
 fetch_spotify_metadata() {
     local url="$1"
     local html_content
-    html_content=$(curl -sSL -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" "$url")
+    local max_retries=5
+    local retry_count=0
+    local retry_wait=5
+    local response
+    local http_code
+
+    while [ $retry_count -lt $max_retries ]; do
+        response=$(curl -sSL -w "%{http_code}" -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" "$url")
+        http_code="${response: -3}"
+        html_content="${response%???}"
+
+        if [ "$http_code" = "429" ]; then
+            log_info "Rate limited (HTTP 429). Retrying in $retry_wait seconds... ($((retry_count + 1))/$max_retries)"
+            sleep $retry_wait
+            retry_count=$((retry_count + 1))
+            retry_wait=$((retry_wait * 2)) # Exponential backoff
+        else
+            break
+        fi
+    done
+
+    if [ "$http_code" = "429" ]; then
+        log_error "Rate limit exceeded after $max_retries retries for URL: $url"
+        return 1
+    fi
 
     local title artist album cover_url
 
@@ -200,10 +224,35 @@ fetch_spotify_metadata() {
 query_lavalink() {
     local search_query="$1"
     local response
+    local max_retries=5
+    local retry_count=0
+    local retry_wait=5
+    local http_code
 
-    if ! response=$(curl -sS -G --data-urlencode "identifier=ytsearch:${search_query}" \
-        -H "Authorization: ${LAVALINK_PASSWORD}" \
-        "${LAVALINK_URL}/v4/loadtracks" 2>/dev/null); then
+    while [ $retry_count -lt $max_retries ]; do
+        response=$(curl -sS -w "%{http_code}" -G --data-urlencode "identifier=ytsearch:${search_query}" \
+            -H "Authorization: ${LAVALINK_PASSWORD}" \
+            "${LAVALINK_URL}/v4/loadtracks" 2>/dev/null || echo "000")
+
+        http_code="${response: -3}"
+
+        if [ "$http_code" = "429" ]; then
+            log_info "Lavalink rate limited (HTTP 429). Retrying in $retry_wait seconds... ($((retry_count + 1))/$max_retries)"
+            sleep $retry_wait
+            retry_count=$((retry_count + 1))
+            retry_wait=$((retry_wait * 2))
+        else
+            response="${response%???}"
+            break
+        fi
+    done
+
+    if [ "$http_code" = "429" ]; then
+        log_error "Lavalink rate limit exceeded after $max_retries retries for query: $search_query"
+        return 1
+    fi
+
+    if [ -z "$response" ] || [ "$http_code" = "000" ]; then
         log_error "Failed to connect to Lavalink node at ${LAVALINK_URL}"
         return 1
     fi
@@ -258,17 +307,34 @@ process_track() {
 
     log_info "Downloading with yt-dlp to: $output_dir"
 
-    if yt-dlp -f "ba" \
-           -x --audio-format mp3 --audio-quality 0 \
-           --embed-metadata \
-           --replace-in-metadata "title" ".*" "$track_title" \
-           --replace-in-metadata "artist" ".*" "$artist" \
-           --replace-in-metadata "album" ".*" "$album" \
-           -o "${output_dir}/${safe_title}.%(ext)s" \
-           "$source_url" > /dev/null 2>&1; then
+    local max_dl_retries=5
+    local dl_retry_count=0
+    local dl_retry_wait=5
+    local dl_success=false
+
+    while [ $dl_retry_count -lt $max_dl_retries ]; do
+        if yt-dlp -f "ba" \
+               -x --audio-format mp3 --audio-quality 0 \
+               --embed-metadata \
+               --replace-in-metadata "title" ".*" "$track_title" \
+               --replace-in-metadata "artist" ".*" "$artist" \
+               --replace-in-metadata "album" ".*" "$album" \
+               -o "${output_dir}/${safe_title}.%(ext)s" \
+               "$source_url" > /dev/null 2>&1; then
+            dl_success=true
+            break
+        else
+            log_info "Download failed (possible rate limit). Retrying in $dl_retry_wait seconds... ($((dl_retry_count + 1))/$max_dl_retries)"
+            sleep $dl_retry_wait
+            dl_retry_count=$((dl_retry_count + 1))
+            dl_retry_wait=$((dl_retry_wait * 2))
+        fi
+    done
+
+    if [ "$dl_success" = true ]; then
         log_success "Download completed for: $track_title"
     else
-        log_error "Download failed for: $track_title"
+        log_error "Download failed for: $track_title after $max_dl_retries retries"
     fi
 }
 
@@ -325,9 +391,9 @@ process_csv_file() {
     log_info "Processing URLs from CSV file: $file"
     while IFS= read -r line || [[ -n "$line" ]]; do
         if [[ "$line" =~ https?://open\.spotify\.com/(track|album|artist|playlist)/[a-zA-Z0-9]+ ]]; then
-            process_url "${BASH_REMATCH[0]}"
+            process_url "${BASH_REMATCH[0]}" || true
         elif [[ "$line" =~ spotify:(track|album|artist|playlist):([a-zA-Z0-9]+) ]]; then
-            process_url "https://open.spotify.com/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+            process_url "https://open.spotify.com/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" || true
         fi
     done < "$file"
 }
