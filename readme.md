@@ -1,5 +1,7 @@
 # MSD (MacBook Spotify Downloader)
 
+# THIS WAS MADE BY AI, This project was made by AI when I was using it for code creation, I do not LIKE AI, But for small scripts I do use it time to time, Remember, IF I used AI on a project, I will SAY, Since AI is trained on copyrighted content, And are litterally sucking up our ocean, In the meantime, I have entirely Stopped using AI
+
 ## Prerequisite Baselines
 
 1. **Operating System:** macOS (Darwin)
