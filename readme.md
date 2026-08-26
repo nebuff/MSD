@@ -1,7 +1,5 @@
 # MSD (MacBook Spotify Downloader)
 
-# THIS WAS MADE BY AI, This project was made by AI when I was using it for code creation, I do not LIKE AI, But for small scripts I do use it time to time, Remember, IF I used AI on a project, I will SAY, Since AI is trained on copyrighted content, And are litterally sucking up our ocean, In the meantime, I have entirely Stopped using AI
-
 ## Prerequisite Baselines
 
 1. **Operating System:** macOS (Darwin)
@@ -67,3 +65,6 @@ msd-download -d "~/Music" "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT
 ```
 
 *Note: Execution will yield formatted Unix output headers: `[INFO]`, `[SUCCESS]`, `[ERROR]`, `[DEBUG]` for strict tracking.*
+
+> [!IMPORTANT]
+> AI Was used in the creation of this script, It was used too quickly figure out how too link in with lavalink API
